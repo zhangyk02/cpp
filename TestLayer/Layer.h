@@ -577,7 +577,7 @@ public:
 	void performance(MatrixXf realLabels) {
 		RowVectorXf rowOnes = RowVectorXf::Ones(classNum);
 		RowVectorXf tmp = rowOnes*softMaxResult.cwiseProduct(realLabels);
-		for (int i; i < tmp.size(); i++)
+		for (int i=0; i < tmp.size(); i++)
 			tmp(i) = log(tmp(i));
 		crossEntropyInSingleBatch = -tmp.sum() / batchSize;
 
