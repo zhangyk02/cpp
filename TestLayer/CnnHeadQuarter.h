@@ -147,7 +147,7 @@ public:
 				crossEntropyArray.push_back(CEthisBatch);
 
 				cout << "correct ratio this batch: " << correctRatioThisBatch << endl;
-				cout << "CE  this batch: " << correctRatioThisBatch << endl;
+				cout << "CE  this batch: " << CEthisBatch << endl;
 
 				if (mode == 0) {
 					for (int i = 1; i < layerNum; i++)
