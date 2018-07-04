@@ -158,7 +158,6 @@ public:
 					cnnLayers[debugLayerNo]->modifyWeights();
 					feedForward(i);
 					cnnLayers[layerNum - 1]->performance(batchedTrainLabel[i][0][0]);
-
 					//对比上次结果
 					int correctNumDebug = cnnLayers[layerNum - 1]->getCorrectNumInSingleBatch();
 					double correctRatioDebug = (double) correctNumDebug / batchSize;
@@ -187,7 +186,7 @@ public:
 					}
 
 					cout <<  "correct ratio in debug: " << correctRatioDebug << "--" << correctRatioStr << endl;
-					cout << "CE in debug: " << correctRatioThisBatch << "--" << crossEntropyStr << endl;
+					cout << "CE in debug: " << CEDebug << "--" << crossEntropyStr << endl;
 
 				}
 
