@@ -1,6 +1,7 @@
 #include "Layer.h"
 #include "MyStopWatch.h"
 #include <vector>
+#include <string>
 #include <sstream>
 #include <map>
 
@@ -10,6 +11,8 @@ class CnnHeadQuarter {
 private:
 	//vector<Layer> cnnLayers;
 	Layer** cnnLayers;
+	int mode;
+	int debugLayerNo;
 	int layerNum;
 	vector<map<string, string> > layerConfigß;
 	map<string, double> paraConfig;
@@ -26,6 +29,7 @@ private:
 	int maxIter;
 	int batchSize;
 	int classNum;
+	double epsilong;
 
 	//为了让处理输入更优雅
 	// Value-Defintions of the different String values
@@ -68,7 +72,11 @@ public:
 		maxIter = (int)paraConfig["max_iter"];
 		batchSize = (int)paraConfig["batch_size"];
 		classNum = (int)paraConfig["class_num"];
+		mode = (int)paraConfig["mode"]; //0: normal 1: debug
+		debugLayerNo = (int)paraConfig["debug_layer_no"];
 		layerNum = layerConfig.size();
+		epsilong = paraConfig["epsilong"];
+		if (debugLayerNo >= layerNum) mode = 0;
 		cnnLayers = new Layer* [layerConfig.size()];
 		string info = setupLayers(layerConfig, paraConfig);
 		if (info.compare("ready") != 0) {
@@ -83,6 +91,7 @@ public:
 		int totalCorrectNum = 0;
 		int totalSampleNum = 0;
 		vector<double> correctRatioArray;
+		vector<double> crossEntropyArray;
 		int batchNum = trainImagesEigen.size() / batchSize;
 		cout << batchNum << endl;
 		for (int bn = 0; bn < batchNum; bn++) {
@@ -108,7 +117,7 @@ public:
 		}
 
 		//cout<<batchedTrainImage.size()<<"x"<<batchedTrainImage[0].size()<<"x"<<batchedTrainImage[0][0].size()<<endl;
-		MyStopWatch sw;
+
 
 		for (int j = 0; j < maxIter; j++)
 		{
@@ -121,45 +130,66 @@ public:
 
 				//cout << "layer" << 0 << ": " << cnnLayers[0]->getType() << " ";
 				//cout << flush;
-				sw.timeIntervalFromLastClick();
-				cnnLayers[0]->feedForward(batchedTrainImage[i]);
-				vector<vector<MatrixXf> > output_map = cnnLayers[0]->getOutputBatchedMap();
-				cout << "time(ms) in " << cnnLayers[0]->getType() << "'s ff: " << sw.timeIntervalFromLastClick() << endl;
-				bool noTrivalChange;
-				for (int l = 1; l < layerNum; l++) {
-					//cout << "layer" << l << ": " << cnnLayers[l]->getType() << " ";
-					cout << "outmap in " << cnnLayers[l - 1]->getType() << "'s ff: " << endl << output_map[0][0] << endl;
-					cnnLayers[l]->feedForward(output_map);
-					//cout<<"break point 8"<<endl;
-					output_map = cnnLayers[l]->getOutputBatchedMap();
-					cout << "time(ms) in " << cnnLayers[l]->getType() << "'s ff: " << sw.timeIntervalFromLastClick() << endl;
 
-					//cout<<"break point 9"<<endl;
-					//cnnLayers[l].tuneWeight();// 需要加息
-				}
+
 				//cout << "layer" << layerNum - 1 << ": " << cnnLayers[layerNum - 1]->getType() << " ";
-				cnnLayers[layerNum - 1]->backForward(batchedTrainLabel[i]);
+				//
+
+				feedForward(i);
+				cnnLayers[layerNum - 1]->performance(batchedTrainLabel[i][0][0]);
+				backForward(i);
+				//结果记录与输出
 				int correctNumThisBatch = cnnLayers[layerNum - 1]->getCorrectNumInSingleBatch();
 				totalCorrectNum += correctNumThisBatch;
 				double correctRatioThisBatch = (double) correctNumThisBatch / batchSize;
 				correctRatioArray.push_back(correctRatioThisBatch);
+				double CEthisBatch = cnnLayers[layerNum - 1]->getCrossEntropyInSingleBatch();
+				crossEntropyArray.push_back(CEthisBatch);
+
 				cout << "correct ratio this batch: " << correctRatioThisBatch << endl;
+				cout << "CE  this batch: " << correctRatioThisBatch << endl;
 
-
-				vector<vector<MatrixXf> > input_sensitive_map = cnnLayers[layerNum - 1]->getInputSensitiveMap();
-				cout << "time(ms) in " << cnnLayers[0]->getType() << "'s bp: " << sw.timeIntervalFromLastClick() << endl;
-
-				//cout << "point12" << endl;
-
-
-				for (int l = layerNum - 2; l > 0; l--) {
-					//cout << "layer" << l << ": " << cnnLayers[l]->getType() << " ";
-					cnnLayers[l]->backForward(input_sensitive_map);
-					input_sensitive_map = cnnLayers[l]->getInputSensitiveMap();
-					cout << "time(ms) in " << cnnLayers[l]->getType() << "'s bp: " << sw.timeIntervalFromLastClick() << endl;
+				if (mode == 0) {
+					for (int i = 1; i < layerNum; i++)
+						cnnLayers[i]->modifyWeights();
 
 				}
+				if (mode == 1) {
+					cnnLayers[debugLayerNo]->modifyWeights();
+					feedForward(i);
+					cnnLayers[layerNum - 1]->performance(batchedTrainLabel[i][0][0]);
 
+					//对比上次结果
+					int correctNumDebug = cnnLayers[layerNum - 1]->getCorrectNumInSingleBatch();
+					double correctRatioDebug = (double) correctNumDebug / batchSize;
+					double CEDebug = cnnLayers[layerNum - 1]->getCrossEntropyInSingleBatch();
+					string correctRatioStr;
+					if (correctRatioDebug - correctRatioThisBatch < -epsilong) {
+						correctRatioStr = "lowered";
+					}
+					else if (correctRatioDebug - correctRatioThisBatch > epsilong) {
+						correctRatioStr = "raised";
+					}
+					else {
+						correctRatioStr = "unchanged";
+					}
+					string crossEntropyStr;
+
+					if (CEDebug - CEthisBatch < -epsilong ) {
+						crossEntropyStr = "lowered";
+
+					}
+					else if (CEDebug - CEthisBatch > epsilong) {
+						crossEntropyStr = "raised";
+					}
+					else {
+						crossEntropyStr = "unchanged";
+					}
+
+					cout <<  "correct ratio in debug: " << correctRatioDebug << "--" << correctRatioStr << endl;
+					cout << "CE in debug: " << correctRatioThisBatch << "--" << crossEntropyStr << endl;
+
+				}
 
 			}
 		}
@@ -172,8 +202,48 @@ public:
 		}
 	}
 
-	void feedFarward(vector<vector<MatrixXf> > batchedInputImage);
-	void backFarward(vector<vector<MatrixXf> > batchedLabel);
+	void feedForward(int batchNum) {
+
+		MyStopWatch sw;
+		sw.timeIntervalFromLastClick();
+		cnnLayers[0]->feedForward(batchedTrainImage[batchNum]);
+		vector<vector<MatrixXf> > output_map = cnnLayers[0]->getOutputBatchedMap();
+		cout << "time(ms) in " << cnnLayers[0]->getType() << "'s ff: " << sw.timeIntervalFromLastClick() << endl;
+		bool noTrivalChange;
+		for (int l = 1; l < layerNum; l++) {
+			//cout << "layer" << l << ": " << cnnLayers[l]->getType() << " ";
+			cout << "outmap in " << cnnLayers[l - 1]->getType() << "'s ff: " << endl << output_map[0][0] << endl;
+			cnnLayers[l]->feedForward(output_map);
+			//cout<<"break point 8"<<endl;
+			output_map = cnnLayers[l]->getOutputBatchedMap();
+			cout << "time(ms) in " << cnnLayers[l]->getType() << "'s ff: " << sw.timeIntervalFromLastClick() << endl;
+
+
+
+			//cout<<"break point 9"<<endl;
+			//cnnLayers[l].tuneWeight();// 需要加息
+		}
+	}
+	void backForward(int batchNum) {
+		MyStopWatch sw;
+
+		cnnLayers[layerNum - 1]->backForward(batchedTrainLabel[batchNum]);
+
+		//if (mode == 0) cnnLayers[layerNum - 1]->modifyWeights();
+		// begin bp
+		vector<vector<MatrixXf> > input_sensitive_map = cnnLayers[layerNum - 1]->getInputSensitiveMap();
+
+		cout << "time(ms) in " << cnnLayers[0]->getType() << "'s bp: " << sw.timeIntervalFromLastClick() << endl;
+		//cout << "point12" << endl;
+		for (int l = layerNum - 2; l > 0; l--) {
+			//cout << "layer" << l << ": " << cnnLayers[l]->getType() << " ";
+			cnnLayers[l]->backForward(input_sensitive_map);
+			if (mode == 0) cnnLayers[l]->modifyWeights();
+			input_sensitive_map = cnnLayers[l]->getInputSensitiveMap();
+			cout << "time(ms) in " << cnnLayers[l]->getType() << "'s bp: " << sw.timeIntervalFromLastClick() << endl;
+		}
+
+	}
 	void updateRecord(vector<vector<MatrixXf> > batchedLabel);
 	double accuracy() {
 		return totalSamples == 0 ? 0 : (double)correctSamples / totalSamples;
@@ -236,7 +306,7 @@ public:
 			cnnLayers[i]->setLearningRate(paraConfig["learning_rate"]);
 			cnnLayers[i]->setRegulationRatio(paraConfig["regulation_ratio"]);
 			cnnLayers[i]->init();
-			cout << paraConfig["epsilong"] << " "<<paraConfig["learning_rate"]<<endl;
+			cout << paraConfig["epsilong"] << " " << paraConfig["learning_rate"] << endl;
 			//cnnLayers[i].setSingleInputMapSize(singleOutputMapSizeOfLastLayer);
 			outputMapNumOfLastLayer = cnnLayers[i]->getOutputNum();
 			singleOutputMapSizeOfLastLayer = cnnLayers[i]->getSingleOutputMapSize();

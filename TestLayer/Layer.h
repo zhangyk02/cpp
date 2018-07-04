@@ -37,6 +37,7 @@ protected:
 	vector<vector<MatrixXf> > inputSensitiveMap;
 	vector<vector<MatrixXf> > outputSensitiveMap;
 	int correctNumInSingleBatch;
+	int crossEntropyInSingleBatch;
 
 	string type;
 	double specialParam;
@@ -138,6 +139,18 @@ public:
 	}
 	int getCorrectNumInSingleBatch() {
 		return correctNumInSingleBatch;
+	}
+
+	void modifyWeights() {
+
+		cout << "[WARNING] layer:" << type << "'s modifyWeights() using default version" << endl;
+	}
+
+	void performance(MatrixXf realLabels) {
+		cout << "[WARNING] layer:" << type << "'s performance() using default version" << endl;
+	}
+	double getCrossEntropyInSingleBatch(){
+		return crossEntropyInSingleBatch;
 	}
 
 };
@@ -331,10 +344,36 @@ public:
 
 		bool isTrivalChange = true;
 
+		/* move:
+				for (int j = 0; j < outputMapNum; j++)
+				{
+					if (abs(b[j]) > epsilong && abs(db[j] / b[j]) > epsilong) isTrivalChange = false;
+					b[j] -= learningRate * db[j];
+					for (int i = 0; i < inputMapNum; i++)
+					{
+						for (int m = 0; m < kerSize; m++)
+							for (int n = 0; n < kerSize; n++)
+							{
+								//if (abs(W[i][j](m, n)) > epsilong && abs(dW[i][j](m, n) / W[i][j](m, n)) > epsilong) isTrivalChange = false;
+								W[i][j](m, n) -= learningRate * dW[i][j](m, n) + regulationRatio * W[i][j](m, n);
+							}
+					}
 
+				}
+			to modifyWeights
+		*/
+		return isTrivalChange;
+	}
+
+
+	void init() {
+		//inputSensitiveMap = vector<vector <MatrixXf> >(batchSize, vector<MatrixXf>(inputMapNum, ));
+	}
+
+	void modifyWeights() {
 		for (int j = 0; j < outputMapNum; j++)
 		{
-			if (abs(b[j]) > epsilong && abs(db[j] / b[j]) > epsilong) isTrivalChange = false;
+			// if (abs(b[j]) > epsilong && abs(db[j] / b[j]) > epsilong) isTrivalChange = false;
 			b[j] -= learningRate * db[j];
 			for (int i = 0; i < inputMapNum; i++)
 			{
@@ -347,12 +386,6 @@ public:
 			}
 
 		}
-
-		return isTrivalChange;
-	}
-
-	void init() {
-		//inputSensitiveMap = vector<vector <MatrixXf> >(batchSize, vector<MatrixXf>(inputMapNum, ));
 	}
 
 };
@@ -525,7 +558,7 @@ public:
 		//cout << endl << "(realLabel - softMaxResult):" << (realLabel - softMaxResult) << endl;
 		cout << endl << "dW:" << dW << endl << endl;
 		bool isTrivalChange = true;
-		W -= dW * learningRate + regulationRatio * W;
+		// move: W -= dW * learningRate + regulationRatio * W; to modifyWeights
 		// for (int i = 0; i < W.rows(); i++) {
 		// 	for (int j = 0; j < W.cols(); j++) {
 		// 		//if (abs(W(i, j)) > epsilong && abs(dW(i, j) / W(i, j)) > epsilong) isTrivalChange = false;
@@ -536,6 +569,26 @@ public:
 		// ATTENTION 这里的正负号值得注意
 		return isTrivalChange;
 	}
+
+	void modifyWeights() {
+		W -= dW * learningRate + regulationRatio * W;
+	}
+
+	void performance(MatrixXf realLabels) {
+		RowVectorXf rowOnes = RowVectorXf::Ones(classNum);
+		RowVectorXf tmp = rowOnes*softMaxResult.cwiseProduct(realLabels);
+		for (int i; i < tmp.size(); i++)
+			tmp(i) = log(tmp(i));
+		crossEntropyInSingleBatch = -tmp.sum() / batchSize;
+
+		correctNumInSingleBatch = 0;
+		for (int i = 0; i < batchSize; i++) {
+			correctNumInSingleBatch += Util::maxIndex(realLabels.col(i)) == labelOut[i] ? 1 : 0;
+			//cout << labels[i] << ",";
+		}
+
+	}
+
 
 
 
@@ -788,6 +841,9 @@ public:
 	}
 	void init() {
 		inputSensitiveMap = vector<vector <MatrixXf> >(batchSize, vector<MatrixXf>(inputMapNum));
+	}
+	void modifyWeights() {
+
 	}
 };
 

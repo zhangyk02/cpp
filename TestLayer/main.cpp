@@ -16,6 +16,8 @@ void getCnnConfig(map<string, double> &paraConfig, vector<map<string, string> > 
 	paraConfig["regulation_ratio"] = 0.05;
 	paraConfig["class_num"] = 10;
 	paraConfig["max_iter"] = 50;
+	paraConfig["mode"] = 1;
+	paraConfig["debug_layer_no"] = 7;
 
 	//vector<map<string, string> > layerConfig;
 	//输入层
