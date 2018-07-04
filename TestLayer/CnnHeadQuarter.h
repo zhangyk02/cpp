@@ -80,6 +80,9 @@ public:
 	}
 	void batchedTrain() {
 		cout << "in batchedTrain" << endl;
+		int totalCorrectNum = 0;
+		int totalSampleNum = 0;
+		vector<double> correctRatioArray;
 		int batchNum = trainImagesEigen.size() / batchSize;
 		cout << batchNum << endl;
 		for (int bn = 0; bn < batchNum; bn++) {
@@ -112,6 +115,8 @@ public:
 			cout << "iter: " << j << endl;
 			for (int i = 0; i < batchedTrainImage.size(); i++) {
 				cout << "batch: " << i << endl;
+				totalSampleNum += batchSize;
+
 				//cout << "i=" << i << "batched size:" << batchedTrainImage.size() << endl;
 
 				//cout << "layer" << 0 << ": " << cnnLayers[0]->getType() << " ";
@@ -123,6 +128,7 @@ public:
 				bool noTrivalChange;
 				for (int l = 1; l < layerNum; l++) {
 					//cout << "layer" << l << ": " << cnnLayers[l]->getType() << " ";
+					cout << "outmap in " << cnnLayers[l - 1]->getType() << "'s ff: " << endl << output_map[0][0] << endl;
 					cnnLayers[l]->feedForward(output_map);
 					//cout<<"break point 8"<<endl;
 					output_map = cnnLayers[l]->getOutputBatchedMap();
@@ -133,6 +139,13 @@ public:
 				}
 				//cout << "layer" << layerNum - 1 << ": " << cnnLayers[layerNum - 1]->getType() << " ";
 				cnnLayers[layerNum - 1]->backForward(batchedTrainLabel[i]);
+				int correctNumThisBatch = cnnLayers[layerNum - 1]->getCorrectNumInSingleBatch();
+				totalCorrectNum += correctNumThisBatch;
+				double correctRatioThisBatch = (double) correctNumThisBatch / batchSize;
+				correctRatioArray.push_back(correctRatioThisBatch);
+				cout << "correct ratio this batch: " << correctRatioThisBatch << endl;
+
+
 				vector<vector<MatrixXf> > input_sensitive_map = cnnLayers[layerNum - 1]->getInputSensitiveMap();
 				cout << "time(ms) in " << cnnLayers[0]->getType() << "'s bp: " << sw.timeIntervalFromLastClick() << endl;
 
@@ -204,6 +217,10 @@ public:
 				cnnLayers[i] = new ReluActivateLayer(singleOutputMapSizeOfLastLayer, outputMapNumOfLastLayer);
 				//cnnLayers.push_back(ReluActivateLayer(singleOutputMapSizeOfLastLayer, outputMapNumOfLastLayer));
 				break;
+			case PRERELU_LAYER:
+				cnnLayers[i] = new PreReluActivateLayer(singleOutputMapSizeOfLastLayer, outputMapNumOfLastLayer);
+				//cnnLayers.push_back(ReluActivateLayer(singleOutputMapSizeOfLastLayer, outputMapNumOfLastLayer));
+				break;
 			case FULL_CONNECTED_LAYER:
 				//FCLayer(int class_num, int singleMapSizeIn, int channelInNum);
 				cnnLayers[i] = new FCLayer((int)paraConfig["class_num"], singleOutputMapSizeOfLastLayer, outputMapNumOfLastLayer);
@@ -219,6 +236,7 @@ public:
 			cnnLayers[i]->setLearningRate(paraConfig["learning_rate"]);
 			cnnLayers[i]->setRegulationRatio(paraConfig["regulation_ratio"]);
 			cnnLayers[i]->init();
+			cout << paraConfig["epsilong"] << " "<<paraConfig["learning_rate"]<<endl;
 			//cnnLayers[i].setSingleInputMapSize(singleOutputMapSizeOfLastLayer);
 			outputMapNumOfLastLayer = cnnLayers[i]->getOutputNum();
 			singleOutputMapSizeOfLastLayer = cnnLayers[i]->getSingleOutputMapSize();

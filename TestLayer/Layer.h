@@ -6,7 +6,7 @@
 #include <ctime>
 #include "Util.h"
 #include "Eigen/Dense"
-#include "MyStopWatch.h"   
+#include "MyStopWatch.h"
 #ifndef LAYER_H
 #define LAYER_H
 using namespace std;
@@ -36,6 +36,7 @@ protected:
 	vector<vector<MatrixXf> > outputBatchedMap;
 	vector<vector<MatrixXf> > inputSensitiveMap;
 	vector<vector<MatrixXf> > outputSensitiveMap;
+	int correctNumInSingleBatch;
 
 	string type;
 	double specialParam;
@@ -134,6 +135,9 @@ public:
 	}
 	void setEpsilong(double ep_silong) {
 		epsilong = ep_silong;
+	}
+	int getCorrectNumInSingleBatch() {
+		return correctNumInSingleBatch;
 	}
 
 };
@@ -237,6 +241,7 @@ public:
 
 
 				for (int i = 0; i < inputMapNum; i++) {
+					//cout << "W[" << i << "][" << j << "]=" << endl << W[i][j] << endl;
 					//cout << "enter into i loop" << i << endl;
 
 					//cout << inputBatchedMap[sample][i] << endl << W[i][j] << endl;
@@ -336,7 +341,7 @@ public:
 				for (int m = 0; m < kerSize; m++)
 					for (int n = 0; n < kerSize; n++)
 					{
-						if (abs(W[i][j](m, n)) > epsilong && abs(dW[i][j](m, n) / W[i][j](m, n)) > epsilong) isTrivalChange = false;
+						//if (abs(W[i][j](m, n)) > epsilong && abs(dW[i][j](m, n) / W[i][j](m, n)) > epsilong) isTrivalChange = false;
 						W[i][j](m, n) -= learningRate * dW[i][j](m, n) + regulationRatio * W[i][j](m, n);
 					}
 			}
@@ -407,7 +412,7 @@ public:
 
 	}
 	void init() {
-		cout << inputMapNum * singleInputMapSize * singleInputMapSize + 1 << "x" << batchSize << endl;
+		//cout << inputMapNum * singleInputMapSize * singleInputMapSize + 1 << "x" << batchSize << endl;
 
 		reshapedInputMap = MatrixXf(inputMapNum * singleInputMapSize * singleInputMapSize + 1, batchSize);
 		//cout << "break point6" << endl;
@@ -415,7 +420,7 @@ public:
 		W = MatrixXf::Random(classNum, inputMapNum * singleInputMapSize * singleInputMapSize + 1);//W和b可以合一吗？
 		//cout << "break point7" << endl;
 
-		labelOut = vector< int >(batchSize);
+		labelOut = vector< int >(batchSize, 0);
 
 		inputSensitiveMap = vector<vector <MatrixXf> >(batchSize, vector<MatrixXf>(inputMapNum));
 
@@ -474,6 +479,9 @@ public:
 		//cout << "point3" << endl;
 		//cout << "W: " << W.rows() << "x" << W.cols() << endl;
 		//cout << "reshapedInputMap: " << reshapedInputMap.rows() << "x" << reshapedInputMap.cols() << endl;
+		cout << "for softmax, W:" << W << endl;
+		cout << "for softmax, reshapedInputMapL" << reshapedInputMap << endl;
+		cout << "W * reshapedInputMap:" << endl << W * reshapedInputMap << endl;
 		softMaxResult = Util::colSoftMax(W * reshapedInputMap);
 		//cout << "point4" << endl;
 		for (int i = 0; i < batchSize; i++) {
@@ -493,6 +501,12 @@ public:
 		//cout << "point10" << endl;
 		//cout << "point11" << endl;
 
+		// 统计这一的错误数
+		correctNumInSingleBatch = 0;
+		for (int i = 0; i < batchSize; i++) {
+			correctNumInSingleBatch += Util::maxIndex(realLabel.col(i)) == labelOut[i] ? 1 : 0;
+			//cout << labels[i] << ",";
+		}
 
 		for (int b = 0; b < batchSize; b++) {
 			for (int m = 0; m < inputMapNum; m++) {
@@ -503,14 +517,21 @@ public:
 			}
 		}
 		// softMaxResult: classNum * batchedSize W:ClassNum*(allInput+1) dW:ClassNum * (allInput+1) reshapedInputMap: (allInput+1)*batchSize
+
 		dW = (realLabel - softMaxResult) * reshapedInputMap.transpose() / batchSize ;
+		//cout << endl << "realLabel:" << endl << realLabel << endl;
+		//cout << endl << "softMaxResult:" << endl << softMaxResult << endl;
+		//cout << endl << "reshapedInputMap.transpose()" << reshapedInputMap.transpose() << endl;
+		//cout << endl << "(realLabel - softMaxResult):" << (realLabel - softMaxResult) << endl;
+		cout << endl << "dW:" << dW << endl << endl;
 		bool isTrivalChange = true;
-		for (int i = 0; i < W.rows(); i++) {
-			for (int j = 0; j < W.cols(); j++) {
-				if (abs(W(i, j)) > epsilong && abs(dW(i, j) / W(i, j)) > epsilong) isTrivalChange = false;
-				W(i, j) -= (dW(i, j) * learningRate + regulationRatio * W(i, j));
-			}
-		}
+		W -= dW * learningRate + regulationRatio * W;
+		// for (int i = 0; i < W.rows(); i++) {
+		// 	for (int j = 0; j < W.cols(); j++) {
+		// 		//if (abs(W(i, j)) > epsilong && abs(dW(i, j) / W(i, j)) > epsilong) isTrivalChange = false;
+		// 		W(i, j) += (dW(i, j) * learningRate + regulationRatio * W(i, j));
+		// 	}
+		// }
 		//cout << "point7" << endl;
 		// ATTENTION 这里的正负号值得注意
 		return isTrivalChange;
@@ -621,7 +642,61 @@ public:
 		}
 		return true;
 	}
-	void init(){
+	void init() {
+
+	}
+};
+
+
+class PreReluActivateLayer: public ActivateLayer {
+public:
+	PreReluActivateLayer(int singleMapSizeIn, int channelInNum) {
+		setType("activation");
+		singleInputMapSize = singleMapSizeIn;
+		singleOutputMapSize = singleMapSizeIn;
+		inputMapNum = channelInNum;
+		outputMapNum = channelInNum;
+	}
+	virtual void feedForward(vector<vector<MatrixXf> > input_batchImage) {
+		//cout << "enter into ReluActivateLayer's feedForward" << endl;
+		inputBatchedMap = input_batchImage;
+		ClearVector(outputBatchedMap);
+		//calculate outputMap
+		for (int i = 0; i < inputBatchedMap.size(); i++) {
+			vector<MatrixXf> tp;
+			for (int j = 0; j < inputBatchedMap[0].size(); j++) {
+				MatrixXf tmpMap(singleInputMapSize, singleInputMapSize);
+				for (int k = 0; k < singleInputMapSize; k++)
+					for (int m = 0; m < singleInputMapSize; m++)
+
+						tmpMap(k, m) = inputBatchedMap[i][j](k, m) > 0 ? inputBatchedMap[i][j](k, m) : 0.1 * inputBatchedMap[i][j](k, m);
+				tp.push_back(tmpMap);
+
+			}
+			outputBatchedMap.push_back(tp);
+		}
+	}
+	virtual bool backForward(vector<vector<MatrixXf> > output_sensitiveMap) {
+		outputSensitiveMap = output_sensitiveMap;
+		//cout<<"outputSensitiveMap: "<<outputSensitiveMap.size()<<"x"<<outputSensitiveMap[0].size()<<endl;
+		//cout<<"inputBatchedMap: "<<inputBatchedMap.size()<<"x"<<inputBatchedMap[0].size()<<endl;
+		//calculate inputSentiveMap
+		ClearVector(inputSensitiveMap);
+		for (int i = 0; i < inputBatchedMap.size(); i++) {
+			vector<MatrixXf> tp;
+			for (int j = 0; j < inputBatchedMap[0].size(); j++) {
+				MatrixXf tmpMap(singleInputMapSize, singleInputMapSize);
+				for (int k = 0; k < singleInputMapSize; k++)
+					for (int m = 0; m < singleInputMapSize; m++)
+						tmpMap(k, m) = outputSensitiveMap[i][j](k, m) * (outputBatchedMap[i][j](k, m) > 0 ? 1 : 0.1);
+				tp.push_back(tmpMap);
+
+			}
+			inputSensitiveMap.push_back(tp);
+		}
+		return true;
+	}
+	void init() {
 
 	}
 };
@@ -646,9 +721,11 @@ public:
 
 	virtual void feedForward(vector<vector<MatrixXf> > input_batchImage) {
 		inputBatchedMap = input_batchImage;
+		//cout << "maxpooling's inputmap" << endl << inputBatchedMap[0][0] << endl;
 		int poolSize = (int)specialParam;
 		ClearVector(outputBatchedMap);
 		//cout << "poolSize:" << poolSize << endl;
+		//cout << "windowNum:" << windowNum << endl;
 		//cout << "inputBatchedMap.size(): " << inputBatchedMap.size() << endl;
 		for (int i = 0; i < inputBatchedMap.size(); i++) {
 			//cout << "feedForward of maxPooling, loop i: " << i << endl;
@@ -657,9 +734,9 @@ public:
 				//cout << "feedForward of maxPooling, loop j: " << j << endl;
 				MatrixXf tmpMap(singleOutputMapSize, singleOutputMapSize);
 				MatrixXf tmpSensiMap = MatrixXf::Zero(singleInputMapSize, singleInputMapSize);
-				for (int k = 0; k < windowNum; k++) {
+				for (int k = 0; k < poolSize; k++) {
 					//cout << "feedForward of maxPooling, loop k: " << k << endl;
-					for (int m = 0; m < windowNum; m++) {
+					for (int m = 0; m < poolSize; m++) {
 						//point6
 						//
 						//
@@ -668,16 +745,24 @@ public:
 						int maxIndx = 0;
 						int maxIndy = 0;
 						//cout << "poosible fault when indexing matrix" << endl;
-						int maxValue = inputBatchedMap[i][j](k * poolSize, m * poolSize);
-						for (int t1 = 0; t1 < poolSize; t1++)
-							for (int t2 = 0; t2 < poolSize; t2++)
-								if (inputBatchedMap[i][j](k * poolSize + t1, m * poolSize + t2) > maxValue) {
+						double maxValue = inputBatchedMap[i][j](k * windowNum, m * windowNum);
+						//if (maxValue > 1000000 | maxValue < -1000000) cout << "maxValue: " << maxValue << " r: " << k * poolSize + maxIndx << " r:" << m*poolSize + maxIndy << endl;
+
+						for (int t1 = 0; t1 < windowNum; t1++)
+							for (int t2 = 0; t2 < windowNum; t2++)
+							{	//if (i == 0 && j == 0)
+								//cout << "compareing inputBatchedMap[0][0](" << k * windowNum + t1 << "," << m * windowNum + t2 << "), which is " << inputBatchedMap[i][j](k * windowNum + t1, m * windowNum + t2) << ", with maxvalue:" << maxValue << endl;
+								if (inputBatchedMap[i][j](k * windowNum + t1, m * windowNum + t2) > maxValue) {
 									maxIndx = t1;
 									maxIndy = t2;
-									maxValue = inputBatchedMap[i][j](k * poolSize + t1, m * poolSize + t2);
+									maxValue = inputBatchedMap[i][j](k * windowNum + t1, m * windowNum + t2);
 								}
+							}
 						tmpMap(k, m) = maxValue;
-						tmpSensiMap(k * poolSize + maxIndx, m * poolSize + maxIndy) = 1.0;
+						//if (i == 0 && j == 0) cout << "maxValue: " << maxValue << " r: " << k * windowNum + maxIndx << " c:" << m*windowNum + maxIndy << " " << inputBatchedMap[i][j](k * windowNum + maxIndx, m * windowNum + maxIndy) << endl;
+						//if (maxValue > 1000000 | maxValue < -100000) cout << "maxValue: " << maxValue << " r: " << k * poolSize + maxIndx << " r:" << m*poolSize + maxIndy << endl;
+
+						tmpSensiMap(k * windowNum + maxIndx, m * windowNum + maxIndy) = 1.0;
 					}
 				}
 				tp.push_back(tmpMap);
@@ -685,6 +770,8 @@ public:
 			}
 			outputBatchedMap.push_back(tp);
 		}
+
+		cout << "outputBatchedMap.size:" << outputBatchedMap.size() << endl;
 	}
 	virtual bool backForward(vector<vector<MatrixXf> > output_sensitiveMap) {
 		//cout << "enter into maxPooling's backForward" << endl;

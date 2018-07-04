@@ -11,9 +11,9 @@ void getCnnConfig(map<string, double> &paraConfig, vector<map<string, string> > 
 
 	//map<string, double> paraConfig;
 	paraConfig["batch_size"] = 50;
-	paraConfig["epsilong"] = 0.0001;
-	paraConfig["learning_rate"] = 0.01;
-	paraConfig["regulation_ratio"] = 0.1;
+	paraConfig["epsilong"] = 0.001;
+	paraConfig["learning_rate"] = 0.1;
+	paraConfig["regulation_ratio"] = 0.05;
 	paraConfig["class_num"] = 10;
 	paraConfig["max_iter"] = 50;
 
@@ -38,7 +38,7 @@ void getCnnConfig(map<string, double> &paraConfig, vector<map<string, string> > 
 	layerConfig.push_back(poolingLayer1);
 	//relu激励层1
 	map<string, string> reluLayer1;
-	reluLayer1["type"] = "relu_active";
+	reluLayer1["type"] = "prerelu_active";
 	layerConfig.push_back(reluLayer1);
 
 	//卷积层2
@@ -54,7 +54,7 @@ void getCnnConfig(map<string, double> &paraConfig, vector<map<string, string> > 
 	layerConfig.push_back(poolingLayer2);
 	//relu激励层2
 	map<string, string> reluLayer2;
-	reluLayer2["type"] = "relu_active";
+	reluLayer2["type"] = "prerelu_active";
 	layerConfig.push_back(reluLayer2);
 
 	//输出层(全连接)

@@ -55,6 +55,7 @@ MatrixXf Util::fullConv(MatrixXf basePic, MatrixXf kernel) {
 
 MatrixXf Util::rowSoftMax(MatrixXf mat) {
 	MatrixXf ans(mat.rows(), mat.cols());
+	MatrixXf tmpMap = mat;
 	for (int j = 0; j < mat.rows(); ++j)
 	{
 		float max = 0.0;
@@ -68,7 +69,13 @@ MatrixXf Util::rowSoftMax(MatrixXf mat) {
 			sum += mat(j, k);
 		}
 		for (int k = 0; k < mat.cols(); ++k)
+		{
 			ans(j, k) = mat(j, k) / sum;
+			if (ans(j, k).isnan()) {
+				cout << "mat:" << j << " " << k << endl;
+				exit(0);
+			}
+		}
 	}
 	return ans;
 }
@@ -77,7 +84,7 @@ MatrixXf Util::colSoftMax(MatrixXf mat) {
 	MatrixXf ans(mat.rows(), mat.cols());
 	for (int j = 0; j < mat.cols(); ++j)
 	{
-		float max = 0.0;
+		float max = mat(0, j);
 		float sum = 0.0;
 		for (int k = 0; k < mat.rows(); ++k)
 			if (max < mat(k, j))

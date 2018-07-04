@@ -78,11 +78,12 @@ MatrixXf Util::rowSoftMax(MatrixXf mat) {
 
 MatrixXf Util::colSoftMax(MatrixXf mat) {
     MatrixXf ans(mat.rows(), mat.cols());
+    MatrixXf tmpMat = mat;
     for (int j = 0; j < mat.cols(); ++j)
     {
-        float max = 0.0;
+        float max = mat(0, j);
         float sum = 0.0;
-        for (int k = 0; k < mat.rows(); ++k)
+        for (int k = 1; k < mat.rows(); ++k)
             if (max < mat(k, j))
                 max = mat(k, j);
         for (int k = 0; k < mat.rows(); ++k)
@@ -91,7 +92,17 @@ MatrixXf Util::colSoftMax(MatrixXf mat) {
             sum += mat(k, j);
         }
         for (int k = 0; k < mat.rows(); ++k)
+        {
             ans(k, j) = mat(k, j) / sum;
+            // if (ans(k, j).isNan()) {
+            //     cout << "mat tha cause nan: " << tmpMat << endl;
+            //     exit(0);
+            // }
+            // if (ans(k, j).isInf()) {
+            //     cout << "mat tha cause inf: " << tmpMat << endl;
+            //     exit(0);
+            // }
+        }
     }
     return ans;
 }

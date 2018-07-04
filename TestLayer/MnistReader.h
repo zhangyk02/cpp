@@ -144,6 +144,7 @@ public:
                 for (int k = 0; k < cols; k++) {
                     tmpMat(j, k) = trainImages[i][j * cols + k];
                 }
+            tmpMat/=255;
             trainImagesEigen.push_back(tmpMat);
             tmpVec = VectorXf::Zero(10);
             tmpVec((int)trainLabels[i]) = 1;
@@ -155,6 +156,7 @@ public:
                 for (int k = 0; k < cols; k++) {
                     tmpMat(j, k) = testImages[i][j * cols + k];
                 }
+            tmpMat/=255;
             testImagesEigen.push_back(tmpMat);
             tmpVec = VectorXf::Zero(10);
             tmpVec((int)testLabels[i]) = 1;
